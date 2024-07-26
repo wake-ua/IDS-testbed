@@ -53,3 +53,21 @@
     value: https://w3id.org/idsa/contexts/context.jsonld
   - key: transportCertsSha256
     value: 31741d12bd09dff4d0beb31b6d42811788e4d8954910a985d70d3127630a188d
+- client_id: EB:7C:B0:09:E8:76:71:2E:36:06:3E:F1:C7:57:CE:D5:C2:7D:3A:55:keyid:C4:76:D0:AA:CD:93:79:35:0F:EB:A7:64:60:90:A4:6B:B4:38:4D:33
+  client_name: connectorC
+  grant_types: client_credentials
+  token_endpoint_auth_method: private_key_jwt
+  scope: idsc:IDS_CONNECTOR_ATTRIBUTES_ALL
+  attributes:
+  - key: idsc
+    value: IDS_CONNECTOR_ATTRIBUTES_ALL
+  - key: securityProfile
+    value: idsc:BASE_SECURITY_PROFILE
+  - key: referringConnector
+    value: http://connectorC.demo
+  - key: "@type"
+    value: ids:DatPayload
+  - key: "@context"
+    value: https://w3id.org/idsa/contexts/context.jsonld
+  - key: transportCertsSha256
+    value: f925829e21c8e1eba706cca8bdbf4700ab797e86e579195f36835a6dd4dff863

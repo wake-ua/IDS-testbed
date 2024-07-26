@@ -85,6 +85,10 @@ openssl pkcs12 -export -out connectorB.p12 -in connectorB.pem -inkey connectorB-
 openssl pkcs12 -in connectorB.p12 -clcerts -nokeys -out connectorB.crt -passin pass:password
 openssl pkcs12 -in connectorB.p12 -out connectorB.cert -nokeys -nodes -passin pass:password
 
+openssl pkcs12 -export -out connectorC.p12 -in connectorC.pem -inkey connectorC-key.pem -passout pass:password
+openssl pkcs12 -in connectorC.p12 -clcerts -nokeys -out connectorC.crt -passin pass:password
+openssl pkcs12 -in connectorC.p12 -out connectorC.cert -nokeys -nodes -passin pass:password
+
 openssl pkcs12 -export -out daps.p12 -in daps.pem -inkey daps-key.pem -passout pass:password
 openssl pkcs12 -in daps.p12 -clcerts -nokeys -out daps.crt -passin pass:password
 openssl pkcs12 -in daps.p12 -out daps.cert -nokeys -nodes -passin pass:password
@@ -100,6 +104,7 @@ openssl pkcs12 -in connectorArevoked.p12 -out connectorArevoked.cert -nokeys -no
 
 cp connectorA-key.pem connectorA.key
 cp connectorB-key.pem connectorB.key
+cp connectorC-key.pem connectorC.key
 cp daps-key.pem daps.key
 cp broker-key.pem broker.key
 cp connectorArevoked-key.pem connectorArevoked.key
@@ -120,6 +125,10 @@ chmod 664 connectorB.cert
 chmod 664 connectorB.crt
 chmod 664 connectorB.key
 chmod 664 connectorB.p12
+chmod 664 connectorC.cert
+chmod 664 connectorC.crt
+chmod 664 connectorC.key
+chmod 664 connectorC.p12
 chmod 664 connectorArevoked.cert
 chmod 664 connectorArevoked.crt
 chmod 664 connectorArevoked.key

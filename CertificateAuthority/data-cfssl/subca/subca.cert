@@ -1,7 +1,7 @@
 Bag Attributes
     localKeyID: EC 27 EE EA 1F 42 5D D4 BE B2 FF A1 69 FE 68 C6 4F 6C 65 12 
-subject=C = DE, L = Dortmund, O = IDSA, OU = IDS Reference Testbed, CN = ReferenceTestbedSubCA
-issuer=C = DE, L = Dortmund, O = IDSA, OU = IDS Reference Testbed, CN = ReferenceTestbedCA
+subject=C=DE, L=Dortmund, O=IDSA, OU=IDS Reference Testbed, CN=ReferenceTestbedSubCA
+issuer=C=DE, L=Dortmund, O=IDSA, OU=IDS Reference Testbed, CN=ReferenceTestbedCA
 -----BEGIN CERTIFICATE-----
 MIIC/DCCAl2gAwIBAgIUJ7GIFH4DVRs3PuxXf/NDBxwuGhswCgYIKoZIzj0EAwQw
 bDELMAkGA1UEBhMCREUxETAPBgNVBAcTCERvcnRtdW5kMQ0wCwYDVQQKEwRJRFNB

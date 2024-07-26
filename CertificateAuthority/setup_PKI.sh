@@ -30,6 +30,8 @@ mkdir -p $OCSPDIR
 mkdir -p $COMPDIR
 
 # 1. Set up root CA (using ca.json to generate ca.pem and ca-key.pem)
+echo "1. Set up root CA (using ca.json to generate ca.pem and ca-key.pem)"
+echo "cfssl gencert -initca \"$PKIINPUT/ca.json\" | cfssljson -bare \"$CADIR/ca\""
 cfssl gencert -initca "$PKIINPUT/ca.json" | cfssljson -bare "$CADIR/ca"
 
 # 2. Set up an OCSP Server for the Root CA
@@ -59,6 +61,8 @@ cfssl genkey "$PKIINPUT/connectorA.json" | cfssljson -bare "$COMPDIR/connectorA"
 cfssl sign -ca "$SUBCADIR/subca.pem" -ca-key "$SUBCADIR/subca-key.pem" -db-config "$PKIDIR/ocsp/sqlite_db_components.json" --config "$PKIINPUT/ca-config.json"  -profile "component" "$COMPDIR/connectorA.csr" | cfssljson -bare "$COMPDIR/connectorA"
 cfssl genkey "$PKIINPUT/connectorB.json" | cfssljson -bare "$COMPDIR/connectorB"
 cfssl sign -ca "$SUBCADIR/subca.pem" -ca-key "$SUBCADIR/subca-key.pem"  -db-config "$PKIDIR/ocsp/sqlite_db_components.json" --config "$PKIINPUT/ca-config.json"  -profile "component" "$COMPDIR/connectorB.csr" | cfssljson -bare "$COMPDIR/connectorB"
+cfssl genkey "$PKIINPUT/connectorC.json" | cfssljson -bare "$COMPDIR/connectorC"
+cfssl sign -ca "$SUBCADIR/subca.pem" -ca-key "$SUBCADIR/subca-key.pem"  -db-config "$PKIDIR/ocsp/sqlite_db_components.json" --config "$PKIINPUT/ca-config.json"  -profile "component" "$COMPDIR/connectorC.csr" | cfssljson -bare "$COMPDIR/connectorC"
 cfssl genkey "$PKIINPUT/broker.json" | cfssljson -bare "$COMPDIR/broker"
 cfssl sign -ca "$SUBCADIR/subca.pem" -ca-key "$SUBCADIR/subca-key.pem"  -db-config "$PKIDIR/ocsp/sqlite_db_components.json" --config "$PKIINPUT/ca-config.json"  -profile "component" "$COMPDIR/broker.csr" | cfssljson -bare "$COMPDIR/broker"
 cfssl genkey "$PKIINPUT/daps.json" | cfssljson -bare "$COMPDIR/daps"
