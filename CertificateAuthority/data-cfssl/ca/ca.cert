@@ -1,7 +1,9 @@
 Bag Attributes
     localKeyID: B6 1C 00 D9 F0 16 1D B2 70 73 46 6A BF 62 9F 41 48 F7 12 B9 
-subject=C=DE, L=Dortmund, O=IDSA, OU=IDS Reference Testbed, CN=ReferenceTestbedCA
-issuer=C=DE, L=Dortmund, O=IDSA, OU=IDS Reference Testbed, CN=ReferenceTestbedCA
+subject=C = DE, L = Dortmund, O = IDSA, OU = IDS Reference Testbed, CN = ReferenceTestbedCA
+
+issuer=C = DE, L = Dortmund, O = IDSA, OU = IDS Reference Testbed, CN = ReferenceTestbedCA
+
 -----BEGIN CERTIFICATE-----
 MIICozCCAgWgAwIBAgIUM/d2/w8QR8ngGZc7fHARdPoe+rwwCgYIKoZIzj0EAwQw
 bDELMAkGA1UEBhMCREUxETAPBgNVBAcTCERvcnRtdW5kMQ0wCwYDVQQKEwRJRFNB

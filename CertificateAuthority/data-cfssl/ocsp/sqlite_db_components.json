@@ -1,1 +1,1 @@
-{"driver":"sqlite3","data_source":"/Users/lucia/Development/wakeua/IDS-testbed/CertificateAuthority/data-cfssl/ocsp/certdb_components.db"}
+{"driver":"sqlite3","data_source":"/home/adri/Escritorio/Trabajo/2024/data_spaces/idsa/IDS-testbed/CertificateAuthority/data-cfssl/ocsp/certdb_components.db"}

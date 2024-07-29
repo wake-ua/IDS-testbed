@@ -87,6 +87,20 @@ services:
     networks:
       - local
 
+  postgresd:
+    image: postgres:13
+    container_name: 'postgresd-container'
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=postgresuserd
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=connectorddb
+    volumes:
+      - connector-datad:/var/lib/postgresql/data
+    networks:
+      - local
+
   connectora:
     image: ghcr.io/international-data-spaces-association/dataspace-connector:8.0.2
     container_name: connectora
@@ -173,6 +187,35 @@ services:
     depends_on:
       - postgresc
 
+  connectord:
+    image: ghcr.io/international-data-spaces-association/dataspace-connector:8.0.2
+    container_name: connectord
+    ports:
+      - 8083:8083
+    environment:
+      - CONFIGURATION_PATH=/config/config.json
+      - SERVER_PORT=8083
+      - DAPS_URL=https://omejdn
+      - DAPS_TOKEN_URL=https://omejdn/auth/token
+      - DAPS_KEY_URL=https://omejdn/auth/jwks.json
+      - DAPS_INCOMING_DAT_DEFAULT_WELLKNOWN=/jwks.json
+      - SERVER_SSL_KEY-STORE=file:///conf/connectorD.p12
+      # Define the PostgreSQL setup
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgresd:5432/connectorddb
+      - SPRING_DATASOURCE_PLATFORM=postgres
+      - SPRING_DATASOURCE_DRIVERCLASSNAME=org.postgresql.Driver
+      - SPRING_DATASOURCE_USERNAME=postgresuserd
+      - SPRING_DATASOURCE_PASSWORD=password
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+    volumes:
+      - ./DataspaceConnectorD/conf/config.json:/config/config.json
+      - ./DataspaceConnectorD/conf/connectorD.p12:/conf/connectorD.p12
+      - ./DataspaceConnectorD/conf/truststore.p12:/config/truststore.p12
+    networks:
+      - local
+    depends_on:
+      - postgresd
+
   broker-reverseproxy:
     image: registry.gitlab.cc-asp.fraunhofer.de/eis-ids/broker-open/reverseproxy
     container_name: broker-reverseproxy
@@ -221,6 +264,7 @@ volumes:
   connector-dataa: {}
   connector-datab: {}
   connector-datac: {}
+  connector-datad: {}
 
 networks:
   local:
