@@ -1,13 +1,12 @@
-METADATA_BROKER_URLS=https://localhost:444
+BASE_PATH=/Users/lucia/Development/wakeua/IDS-testbed/DataspaceConnectorC/scripts
+METADATA_BROKER_URL=https://localhost:444
 METADATA_BROKER_DOCKER_URL=https://broker-reverseproxy/infrastructure
-CONNECTOR_URL=https://localhost:8081
+CONNECTOR_URL=https://localhost:8082
+CONNECTOR_DOCKER_URL=https://connectorc:8082
 CONNECTOR_USER=admin
 CONNECTOR_PW=password
 
-DB_URI=mongodb://localhost:27017
-DB_NAME=idsa_metadata
+DATASET_LIST = ${BASE_PATH}/input/dataset_selection.txt
+RULE_JSON = ${BASE_PATH}/input/rule.json
 
-BROKER_COLLECTION=broker
-PROVIDER_COLLECTION=provider
-RESOURCE_COLLECTION=resource
-CATALOG_COLLECTION=catalog
+DATA_SOURCE_URL=https://tdata.dlsi.ua.es/

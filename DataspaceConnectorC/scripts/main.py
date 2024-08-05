@@ -15,6 +15,7 @@ CONNECTOR_USER = os.getenv('CONNECTOR_USER')
 CONNECTOR_PW = os.getenv('CONNECTOR_PW')
 DATA_SOURCE_URL = os.getenv('DATA_SOURCE_URL')
 DATASET_LIST = os.getenv('DATASET_LIST')
+RULE_JSON = os.getenv('RULE_JSON')
 
 
 def get_dataset_list(input_file: str = DATASET_LIST):
@@ -27,6 +28,12 @@ def get_dataset_list(input_file: str = DATASET_LIST):
                     dataset = dataset.split('/')[-1]
                 datasets += [dataset]
     return datasets
+
+
+def get_rule(input_file: str = RULE_JSON):
+    with open(input_file, 'r') as source:
+        rule = source.read()
+    return rule
 
 
 # Get broker description
@@ -248,6 +255,16 @@ def add_offer_to_catalog(offer: dict, catalog: dict, auth: tuple) -> dict:
     response.raise_for_status()
 
 
+def add_representation_to_offer(representation: dict, offer: dict, auth: tuple) -> dict:
+    offer_url = offer["_links"]["self"]["href"]
+    representation_url = representation["_links"]["self"]["href"]
+    request_url = "{}/representations".format(offer_url)
+    response = requests.post(request_url, json=[representation_url], auth=auth, verify=False)
+    print(" \t\t\t\t - Request POST add artifact to representation {0} \t => {1}".format(request_url,
+                                                                                      response.status_code))
+    response.raise_for_status()
+
+
 def get_dataset_metadata(dataset: str, ckan_url: str = DATA_SOURCE_URL) -> dict:
 
     success, result = commons.ckan_api_request(ckan_url, endpoint="package_show", method="get",
@@ -320,7 +337,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL) -> dic
                               },
                      'sample_data': sample}
             representation = {'data': {
-                                "title": offer["data"]["title"] + "(CSV format)",
+                                "title": offer["data"]["title"] + " (CSV format)",
                                 "description": "CSV representation of resource: " + offer["data"]["description"],
                                 "mediaType": "text/csv",
                                 "language": "https://w3id.org/idsa/code/ES",
@@ -332,7 +349,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL) -> dic
                                 "resource_name": offer['data']["resource_name"]
                             }}
             artifact = {
-                            "title": offer["data"]["title"] + "(CSV data)",
+                            "title": offer["data"]["title"] + " (CSV data)",
                             "description": "Artifact as CSV data of resource: " + offer["data"]["description"],
                             "accessUrl": data_url,
                             "automatedDownload": True,
@@ -343,8 +360,31 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL) -> dic
                             "resource_id": offer['data']["resource_id"],
                             "resource_name": offer['data']["resource_name"]
                         }
+            contract = {'data': {
+                            "title": offer["data"]["title"] + " (Contract)",
+                            "description": "Usage contract template for resource: " + offer["data"]["description"],
+                            "organization_id": offer['data']["organization_id"],
+                            "organization_name": catalog['organization_name'],
+                            "dataset_id": offer['data']["dataset_id"],
+                            "dataset_name": offer['data']["dataset_name"],
+                            "resource_id": offer['data']["resource_id"],
+                            "resource_name": offer['data']["resource_name"]
+                        },
+                        'rule': {
+                            "title": offer["data"]["title"] + " (Rule)",
+                            "description": "Rule for resource: " + offer["data"]["description"],
+                            "value": get_rule(),
+                            "organization_id": offer['data']["organization_id"],
+                            "organization_name": catalog['organization_name'],
+                            "dataset_id": offer['data']["dataset_id"],
+                            "dataset_name": offer['data']["dataset_name"],
+                            "resource_id": offer['data']["resource_id"],
+                            "resource_name": offer['data']["resource_name"]
+                        }
+                    }
             representation["artifact"] = artifact
             offer["representations"] = [representation]
+            offer["contract"] = contract
             entities['offers'] += [offer]
 
     return entities
@@ -361,6 +401,11 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
         print(" - Upsert offer: {}".format(offer_data["data"]["title"]))
         offer = upsert_offer(offer_data['data'], connector_url, auth)
         add_offer_to_catalog(offer, catalog, auth)
+        # TODO
+        # Generate contract template
+        # Create Rule
+        # Add Rule to contract
+        # Add contract to offer
         for representation_data in offer_data['representations']:
             print(" - Upsert representation: {}".format(representation_data["data"]["title"]))
             representation = upsert_representation(representation_data['data'], connector_url, auth)
@@ -371,6 +416,9 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
                                                                        representation_data["data"]["title"]))
 
             add_artifact_to_representation(artifact, representation, auth)
+            print(" - Add representation to offer: {} => {}".format(representation_data["data"]["title"],
+                                                                    offer_data["data"]["title"]))
+            add_representation_to_offer(representation, offer, auth)
 
     return imported
 
