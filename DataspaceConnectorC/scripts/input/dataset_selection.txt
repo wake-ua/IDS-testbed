@@ -1,0 +1,8 @@
+# single resource
+https://tdata.dlsi.ua.es/dataset/810804950079-dipcas-pensiones
+https://tdata.dlsi.ua.es/dataset/170679326962-dipcas-campings
+https://tdata.dlsi.ua.es/dataset/269263449199-dipcas-albergues
+
+# multiple resources resulting in two offers with two representation/artifacts each
+https://tdata.dlsi.ua.es/dataset/741260914897-gva-dades-turisme-hotels-comunitat-valenciana
+https://tdata.dlsi.ua.es/dataset/275594829175-gva-dades-turisme-campings-comunitat-valenciana
