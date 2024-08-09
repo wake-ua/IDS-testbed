@@ -160,80 +160,41 @@ def upsert_offer(offer_data: dict, connector_url: str, auth: tuple) -> dict:
                                                                                               existing_offers))
 
 
-def upsert_representation(representation_data: dict, connector_url: str, auth: tuple) -> dict:
-    resource_id = representation_data['resource_id']
+def upsert_resource_entity(entity_data: dict, entity_name: str, connector_url: str, auth: tuple) -> dict:
+    resource_id = entity_data['resource_id']
 
-    # check if representation exists
-    request_url = "{0}/api/representations".format(connector_url)
+    # check if entity exists
+    request_url = "{0}/api/{1}".format(connector_url, entity_name)
     response = requests.get(request_url, data={}, auth=auth, verify=False)
-    print(" \t\t\t\t - Request GET representations {0} \t => {1}".format(request_url, response.status_code))
+    print(" \t\t\t\t - Request GET {0} {1}\t => {2}".format(entity_name, request_url, response.status_code))
     response.raise_for_status()
-    representation_list = json.loads(response.content).get('_embedded', {}).get('representations', [])
-    existing_representations = [o for o in representation_list if o.get("additional", {}).get("resource_id") == resource_id]
+    entity_list = json.loads(response.content).get('_embedded', {}).get(entity_name, [])
+    existing_entities = [o for o in entity_list if o.get("additional", {}).get("resource_id") == resource_id]
 
-    if len(existing_representations) == 0:
+    if len(existing_entities) == 0:
         # POST
-        request_url = "{0}/api/representations".format(connector_url)
-        response = requests.post(request_url, json=representation_data, auth=auth, verify=False)
-        print(" \t\t\t\t - Request POST new representation {0} \t => {1}".format(request_url, response.status_code))
+        response = requests.post(request_url, json=entity_data, auth=auth, verify=False)
+        print(" \t\t\t\t - Request POST new {0} {1} \t => {2}".format(entity_name, request_url, response.status_code))
         response.raise_for_status()
-        new_representation = json.loads(response.content)
-        return new_representation
-    elif len(existing_representations) == 1:
+        new_entity = json.loads(response.content)
+        return new_entity
+    elif len(existing_entities) == 1:
         # PUT
-        request_url = existing_representations[0]["_links"]["self"]["href"]
-        response = requests.put(request_url, json=representation_data, auth=auth, verify=False)
-        print(" \t\t\t\t - Request PUT updated representation {0} \t => {1}".format(request_url, response.status_code))
+        request_url = existing_entities[0]["_links"]["self"]["href"]
+        response = requests.put(request_url, json=entity_data, auth=auth, verify=False)
+        print(" \t\t\t\t - Request PUT updated entity {0} {1}\t => {2}".format(entity_name, request_url, response.status_code))
         response.raise_for_status()
         if response.status_code == 204:
             response = requests.get(request_url, data={}, auth=auth, verify=False)
-            print(" \t\t\t\t - Request GET representation {0} \t => {1}".format(request_url, response.status_code))
+            print(" \t\t\t\t - Request GET entity {0} \t => {1}".format(request_url, response.status_code))
             response.raise_for_status()
-            updated_representation = json.loads(response.content)
-            return updated_representation
+            updated_entity = json.loads(response.content)
+            return updated_entity
         else:
-            raise("*ERROR* Could not update representation {}: {}".format(resource_id, response))
+            raise("*ERROR* Could not update entity {}: {}".format(resource_id, response))
     else:
-        raise Exception("*ERROR: Multiple representations matching current organization {}: {}".format(
-            resource_id, existing_representations))
-
-
-def upsert_artifact(artifact_data: dict, connector_url: str, auth: tuple) -> dict:
-    resource_id = artifact_data['resource_id']
-
-    # check if artifact exists
-    request_url = "{0}/api/artifacts".format(connector_url)
-    response = requests.get(request_url, data={}, auth=auth, verify=False)
-    print(" \t\t\t\t - Request GET artifacts {0} \t => {1}".format(request_url, response.status_code))
-    response.raise_for_status()
-    artifact_list = json.loads(response.content).get('_embedded', {}).get('artifacts', [])
-    existing_artifacts = [o for o in artifact_list if o.get("additional", {}).get("resource_id") == resource_id]
-
-    if len(existing_artifacts) == 0:
-        # POST
-        request_url = "{0}/api/artifacts".format(connector_url)
-        response = requests.post(request_url, json=artifact_data, auth=auth, verify=False)
-        print(" \t\t\t\t - Request POST new artifact {0} \t => {1}".format(request_url, response.status_code))
-        response.raise_for_status()
-        new_artifact = json.loads(response.content)
-        return new_artifact
-    elif len(existing_artifacts) == 1:
-        # PUT
-        request_url = existing_artifacts[0]["_links"]["self"]["href"]
-        response = requests.put(request_url, json=artifact_data, auth=auth, verify=False)
-        print(" \t\t\t\t - Request PUT updated artifact {0} \t => {1}".format(request_url, response.status_code))
-        response.raise_for_status()
-        if response.status_code == 204:
-            response = requests.get(request_url, data={}, auth=auth, verify=False)
-            print(" \t\t\t\t - Request GET artifact {0} \t => {1}".format(request_url, response.status_code))
-            response.raise_for_status()
-            updated_artifact = json.loads(response.content)
-            return updated_artifact
-        else:
-            raise("*ERROR* Could not update artifact {}: {}".format(resource_id, response))
-    else:
-        raise Exception("*ERROR: Multiple artifacts matching current organization {}: {}".format(
-            resource_id, existing_artifacts))
+        raise Exception("*ERROR: Multiple entities matching current organization {}: {}".format(
+            resource_id, existing_entities))
 
 
 def add_artifact_to_representation(artifact: dict, representation: dict, auth: tuple) -> dict:
@@ -265,6 +226,24 @@ def add_representation_to_offer(representation: dict, offer: dict, auth: tuple) 
     response.raise_for_status()
 
 
+def add_rule_to_contract(rule: dict, contract: dict, auth: tuple) -> dict:
+    contract_url = contract["_links"]["self"]["href"]
+    rule_url = rule["_links"]["self"]["href"]
+    request_url = "{}/rules".format(contract_url)
+    response = requests.post(request_url, json=[rule_url], auth=auth, verify=False)
+    print(" \t\t\t\t - Request POST add rule to contract {0} \t => {1}".format(request_url, response.status_code))
+    response.raise_for_status()
+
+
+def add_contract_to_offer(contract: dict, offer: dict, auth: tuple) -> dict:
+    contract_url = contract["_links"]["self"]["href"]
+    offer_url = offer["_links"]["self"]["href"]
+    request_url = "{}/contracts".format(offer_url)
+    response = requests.post(request_url, json=[contract_url], auth=auth, verify=False)
+    print(" \t\t\t\t - Request POST add contract to offer {0} \t => {1}".format(request_url, response.status_code))
+    response.raise_for_status()
+
+
 def get_dataset_metadata(dataset: str, ckan_url: str = DATA_SOURCE_URL) -> dict:
 
     success, result = commons.ckan_api_request(ckan_url, endpoint="package_show", method="get",
@@ -281,7 +260,7 @@ def as_simple_text(text: str):
     return simple_text
 
 
-def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL) -> dict:
+def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provider_url: str = CONNECTOR_DOCKER_URL) -> dict:
     # catalog / offers / representations-artifacts
     id = metadata['id']
     source_url = metadata['url']
@@ -363,6 +342,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL) -> dic
             contract = {'data': {
                             "title": offer["data"]["title"] + " (Contract)",
                             "description": "Usage contract template for resource: " + offer["data"]["description"],
+                            "provider": provider_url,
                             "organization_id": offer['data']["organization_id"],
                             "organization_name": catalog['organization_name'],
                             "dataset_id": offer['data']["dataset_id"],
@@ -401,17 +381,18 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
         print(" - Upsert offer: {}".format(offer_data["data"]["title"]))
         offer = upsert_offer(offer_data['data'], connector_url, auth)
         add_offer_to_catalog(offer, catalog, auth)
-        # TODO
-        # Generate contract template
-        # Create Rule
-        # Add Rule to contract
+        print(" - Upsert contract and rule: {}".format(offer_data['contract']["data"]["title"]))
+        contract = upsert_resource_entity(offer_data['contract']['data'], 'contracts', connector_url, auth)
+        rule = upsert_resource_entity(offer_data['contract']['rule'], 'rules', connector_url, auth)
+        add_rule_to_contract(rule, contract, auth)
+        add_contract_to_offer(contract, offer, auth)
         # Add contract to offer
         for representation_data in offer_data['representations']:
             print(" - Upsert representation: {}".format(representation_data["data"]["title"]))
-            representation = upsert_representation(representation_data['data'], connector_url, auth)
+            representation = upsert_resource_entity(representation_data['data'], 'representations', connector_url, auth)
             artifact_data = representation_data['artifact']
             print(" - Upsert artifact: {}".format(artifact_data["title"]))
-            artifact = upsert_artifact(artifact_data, connector_url, auth)
+            artifact = upsert_resource_entity(artifact_data, 'artifacts', connector_url, auth)
             print(" - Add artifact to representation: {} => {}".format(artifact_data["title"],
                                                                        representation_data["data"]["title"]))
 
