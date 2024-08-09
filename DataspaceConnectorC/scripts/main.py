@@ -404,6 +404,13 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
     return imported
 
 
+def post_broker_registration(metadata_broker_url, connector_url, auth):
+    request_url = "{0}/api/ids/connector/update?recipient={1}".format(connector_url, metadata_broker_url)
+    response = requests.post(request_url, data={}, auth=auth, verify=False)
+    print(" \t\t\t\t - Request POST connector to broker {0}\t => {1}".format(request_url, response.status_code))
+    response.raise_for_status()
+
+
 def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_url: str = METADATA_BROKER_DOCKER_URL,
          connector_url: str = CONNECTOR_URL, connector_docker_url: str = CONNECTOR_DOCKER_URL,
          connector_user: str = CONNECTOR_USER, connector_pw: str = CONNECTOR_PW, input_file: str = DATASET_LIST):
@@ -421,12 +428,12 @@ def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_
     print("\n * Importing {} datasets as resources: {}...] => OK".format(len(datasets), str(datasets)[:300]))
     imported_resources = []
     count = 1
-    for dataset in datasets:
-        print("\t\t - Importing dataset #{}/{}: {}...".format(count, len(datasets), dataset))
-        imported_resources += import_dataset(dataset, connector_url, connector_auth)
-        count += 1
-        print("\t\t\t ... done!\n")
-    print("\t\t ... Imported resources: {}... => OK".format(str(imported_resources)[:300]))
+    # for dataset in datasets:
+    #     print("\t\t - Importing dataset #{}/{}: {}...".format(count, len(datasets), dataset))
+    #     imported_resources += import_dataset(dataset, connector_url, connector_auth)
+    #     count += 1
+    #     print("\t\t\t ... done!\n")
+    # print("\t\t ... Imported resources: {}... => OK".format(str(imported_resources)[:300]))
 
     print("\n * Requesting broker self-description...")
     broker_description = get_broker_description(metadata_broker_url)
@@ -435,6 +442,10 @@ def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_
     print("\n * Requesting connector self-description...")
     self_description = get_self_description(connector_url, connector_auth)
     print("\t\t ... Got Self Description: {}... => OK".format(str(self_description)[:300]))
+
+    print("\n * Register connector in the broker...")
+    broker_registration = post_broker_registration(metadata_broker_docker_url, connector_url, connector_auth)
+    print("\t\t ... Registered in Broker: {}... => OK".format(str(broker_registration)[:300]))
 
     print("\t... DONE.")
 
