@@ -260,6 +260,21 @@ def as_simple_text(text: str):
     return simple_text
 
 
+def get_keywords(metadata: dict) -> list:
+    keywords = []
+    for key in metadata["tag_string_schemaorg"].split(','):
+        tag = key.strip().upper()
+        if tag.endswith('-ES'):
+            tag = tag.rsplit('-', 1)[0]
+            if tag not in keywords:
+                keywords += [tag]
+    for key in str(metadata['original_tags']).split(','):
+        tag = key.strip().upper()
+        if tag not in keywords:
+            keywords += [tag]
+    return keywords
+
+
 def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provider_url: str = CONNECTOR_DOCKER_URL) -> dict:
     # catalog / offers / representations-artifacts
     id = metadata['id']
@@ -275,6 +290,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
     catalog = {
         "title": "Catalog: " + json.loads(metadata['organization']['title'])["es"],
         "description": json.loads(metadata['organization']['description'])["es"],
+        "language": "ES",
         # "additional":
         "organization_id": metadata['organization']['id'],
         "organization_name": organization_name,
@@ -293,16 +309,16 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                                                        params={"resource_id": resource_id}, verbose=False)
             if success >= 0:
                 header = {k['id']: k['type'] for k in result['result']['fields']}
-                sample =[json.dumps(header)] + [json.dumps(r) for r in result['result']['records']]
+                sample = [json.dumps(header)] + [json.dumps(r) for r in result['result']['records']]
                 # datastore_info = json.dumps(result['result']['fields'])
             offer = {'data': {"resource_id": "{}_{}".format(id, resource_id),
                               "resource_name": "{}_{}".format(metadata["name"], resource["name"]["es"]),
                               "title": metadata["title"]["es"] + " - " + resource["name"]["es"],
                               "description": as_simple_text(metadata["notes"]["es"]) + " " +
                                              resource["description"]["es"],
-                              "keywords": metadata['tags'] + [str(metadata['original_tags'])],
+                              "keywords": get_keywords(metadata),
                               "publisher": ckan_url,
-                              "language": "https://w3id.org/idsa/code/ES",
+                              "language": "ES",
                               "license": metadata["license_url"],
                               "sovereign": catalog['organization_source'],
                               "endpointDocumentation": source_url,
@@ -311,6 +327,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                               'data_url': data_url,
                               'source_url': source_url,
                               "dataset_id": metadata['id'],
+                              "dataset_url": ckan_url + '/dataset/' + metadata['name'],
                               "organization_id": catalog['organization_id'],
                               "organization_name": catalog['organization_name'],
                               },
@@ -323,6 +340,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                                 "organization_id": offer['data']["organization_id"],
                                 "organization_name": catalog['organization_name'],
                                 "dataset_id": offer['data']["dataset_id"],
+                                "dataset_url": ckan_url + '/dataset/' + metadata['name'],
                                 "dataset_name": offer['data']["dataset_name"],
                                 "resource_id": offer['data']["resource_id"],
                                 "resource_name": offer['data']["resource_name"]
@@ -335,6 +353,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                             "organization_id": offer['data']["organization_id"],
                             "organization_name": catalog['organization_name'],
                             "dataset_id": offer['data']["dataset_id"],
+                            "dataset_url": ckan_url + '/dataset/' + metadata['name'],
                             "dataset_name": offer['data']["dataset_name"],
                             "resource_id": offer['data']["resource_id"],
                             "resource_name": offer['data']["resource_name"]
@@ -346,6 +365,7 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                             "organization_id": offer['data']["organization_id"],
                             "organization_name": catalog['organization_name'],
                             "dataset_id": offer['data']["dataset_id"],
+                            "dataset_url": ckan_url + '/dataset/' + metadata['name'],
                             "dataset_name": offer['data']["dataset_name"],
                             "resource_id": offer['data']["resource_id"],
                             "resource_name": offer['data']["resource_name"]
@@ -357,11 +377,12 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                             "organization_id": offer['data']["organization_id"],
                             "organization_name": catalog['organization_name'],
                             "dataset_id": offer['data']["dataset_id"],
+                            "dataset_url": ckan_url + '/dataset/' + metadata['name'],
                             "dataset_name": offer['data']["dataset_name"],
                             "resource_id": offer['data']["resource_id"],
                             "resource_name": offer['data']["resource_name"]
                         }
-                    }
+                      }
             representation["artifact"] = artifact
             offer["representations"] = [representation]
             offer["contract"] = contract
@@ -395,7 +416,6 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
             artifact = upsert_resource_entity(artifact_data, 'artifacts', connector_url, auth)
             print(" - Add artifact to representation: {} => {}".format(artifact_data["title"],
                                                                        representation_data["data"]["title"]))
-
             add_artifact_to_representation(artifact, representation, auth)
             print(" - Add representation to offer: {} => {}".format(representation_data["data"]["title"],
                                                                     offer_data["data"]["title"]))
@@ -404,11 +424,12 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
     return imported
 
 
-def post_broker_registration(metadata_broker_url, connector_url, auth):
+def post_broker_registration(metadata_broker_url, connector_url, auth) -> dict:
     request_url = "{0}/api/ids/connector/update?recipient={1}".format(connector_url, metadata_broker_url)
     response = requests.post(request_url, data={}, auth=auth, verify=False)
     print(" \t\t\t\t - Request POST connector to broker {0}\t => {1}".format(request_url, response.status_code))
     response.raise_for_status()
+    return response.content
 
 
 def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_url: str = METADATA_BROKER_DOCKER_URL,
@@ -428,12 +449,12 @@ def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_
     print("\n * Importing {} datasets as resources: {}...] => OK".format(len(datasets), str(datasets)[:300]))
     imported_resources = []
     count = 1
-    # for dataset in datasets:
-    #     print("\t\t - Importing dataset #{}/{}: {}...".format(count, len(datasets), dataset))
-    #     imported_resources += import_dataset(dataset, connector_url, connector_auth)
-    #     count += 1
-    #     print("\t\t\t ... done!\n")
-    # print("\t\t ... Imported resources: {}... => OK".format(str(imported_resources)[:300]))
+    for dataset in datasets:
+        print("\t\t - Importing dataset #{}/{}: {}...".format(count, len(datasets), dataset))
+        imported_resources += import_dataset(dataset, connector_url, connector_auth)
+        count += 1
+        print("\t\t\t ... done!\n")
+    print("\t\t ... Imported resources: {}... => OK".format(str(imported_resources)[:300]))
 
     print("\n * Requesting broker self-description...")
     broker_description = get_broker_description(metadata_broker_url)
