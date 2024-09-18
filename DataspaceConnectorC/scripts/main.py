@@ -16,6 +16,7 @@ CONNECTOR_PW = os.getenv('CONNECTOR_PW')
 DATA_SOURCE_URL = os.getenv('DATA_SOURCE_URL')
 DATASET_LIST = os.getenv('DATASET_LIST')
 RULE_JSON = os.getenv('RULE_JSON')
+RULE_SAMPLE_JSON = os.getenv('RULE_SAMPLE_JSON')
 
 
 def get_dataset_list(input_file: str = DATASET_LIST):
@@ -331,7 +332,8 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                               "organization_id": catalog['organization_id'],
                               "organization_name": catalog['organization_name'],
                               },
-                     'sample_data': sample}
+                     'sample_data': sample
+                     }
             representation = {'data': {
                                 "title": offer["data"]["title"] + " (CSV format)",
                                 "description": "CSV representation of resource: " + offer["data"]["description"],
@@ -397,7 +399,10 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
     entities_data = get_dataset_entities(metadata)
     catalog = upsert_catalog(entities_data['catalog'], connector_url, auth)
     imported += [catalog]
+
     for offer_data in entities_data['offers']:
+        sample = import_sample(offer_data, catalog, connector_url, auth)
+        offer_data['data']['samples'] = [sample['_links']['self']['href']]
         # upsert offer
         print(" - Upsert offer: {}".format(offer_data["data"]["title"]))
         offer = upsert_offer(offer_data['data'], connector_url, auth)
@@ -422,6 +427,61 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
             add_representation_to_offer(representation, offer, auth)
 
     return imported
+
+
+def import_sample(offer: dict, catalog: dict, connector_url: str, auth: tuple) -> dict:
+    sample_offer_data = {
+            "resource_id": offer['data']['resource_id'] + "_SAMPLE",
+            "resource_name": offer['data']['resource_name'] + "_SAMPLE",
+            "title": offer['data']['title'] + " SAMPLE",
+            "keywords": []
+        }
+    print(" - Upsert SAMPLE offer: {}".format(sample_offer_data["title"]))
+    sample_offer = upsert_offer(sample_offer_data, connector_url, auth)
+    add_offer_to_catalog(sample_offer, catalog, auth)
+
+    # Add contract to offer
+    sample_contract_data = {
+        "resource_id": sample_offer['additional']['resource_id'],
+        "title": offer["data"]["title"] + " SAMPLE (Contract)",
+        "provider": offer['contract']['data']['provider']
+    }
+    print(" - Upsert contract and rule: {}".format(sample_contract_data["title"]))
+    rule_sample_data = {
+        "resource_id": sample_offer['additional']['resource_id'],
+        "title": offer["data"]["title"] + "SAMPLE (Rule)",
+        "value": get_rule(RULE_SAMPLE_JSON)
+    }
+    sample_contract = upsert_resource_entity(sample_contract_data, 'contracts', connector_url, auth)
+    sample_rule = upsert_resource_entity(rule_sample_data, 'rules', connector_url, auth)
+    add_rule_to_contract(sample_rule, sample_contract, auth)
+    add_contract_to_offer(sample_contract, sample_offer, auth)
+
+    # Add representation and artifact to offer
+    representation_data = {
+        "title": offer["data"]["title"] + " SAMPlE (CSV format)",
+        "mediaType": "text/csv",
+        "language": "https://w3id.org/idsa/code/ES",
+        "resource_id": sample_offer['additional']['resource_id']
+    }
+    print(" - Upsert representation: {}".format(representation_data["title"]))
+    representation = upsert_resource_entity(representation_data, 'representations', connector_url, auth)
+    artifact_data = {
+        "title": offer["data"]["title"] + " SAMPLE (CSV data)",
+        "value": json.dumps(offer['sample_data']),
+        "resource_id": sample_offer['additional']['resource_id'],
+        "automatedDownload": True
+    }
+    print(" - Upsert artifact: {}".format(artifact_data["title"]))
+    artifact = upsert_resource_entity(artifact_data, 'artifacts', connector_url, auth)
+    print(" - Add artifact to representation: {} => {}".format(artifact_data["title"],
+                                                               representation_data["title"]))
+    add_artifact_to_representation(artifact, representation, auth)
+    print(" - Add representation to offer: {} => {}".format(representation_data["title"],
+                                                            sample_offer["title"]))
+    add_representation_to_offer(representation, sample_offer, auth)
+
+    return sample_offer
 
 
 def post_broker_registration(metadata_broker_url, connector_url, auth) -> dict:
@@ -456,13 +516,13 @@ def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_
         print("\t\t\t ... done!\n")
     print("\t\t ... Imported resources: {}... => OK".format(str(imported_resources)[:300]))
 
-    print("\n * Requesting broker self-description...")
-    broker_description = get_broker_description(metadata_broker_url)
-    print("\t\t ... Got Broker Description: {}... => OK".format(str(broker_description)[:300]))
-
-    print("\n * Requesting connector self-description...")
-    self_description = get_self_description(connector_url, connector_auth)
-    print("\t\t ... Got Self Description: {}... => OK".format(str(self_description)[:300]))
+    # print("\n * Requesting broker self-description...")
+    # broker_description = get_broker_description(metadata_broker_url)
+    # print("\t\t ... Got Broker Description: {}... => OK".format(str(broker_description)[:300]))
+    #
+    # print("\n * Requesting connector self-description...")
+    # self_description = get_self_description(connector_url, connector_auth)
+    # print("\t\t ... Got Self Description: {}... => OK".format(str(self_description)[:300]))
 
     print("\n * Register connector in the broker...")
     broker_registration = post_broker_registration(metadata_broker_docker_url, connector_url, connector_auth)

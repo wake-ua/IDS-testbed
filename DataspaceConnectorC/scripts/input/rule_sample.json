@@ -1,0 +1,26 @@
+{
+  "@context": {
+    "ids": "https://w3id.org/idsa/core/",
+    "idsc": "https://w3id.org/idsa/code/"
+  },
+  "@type": "ids:Permission",
+  "@id": "https://w3id.org/idsa/autogen/permission/51f5f7e4-f97f-4f91-bc57-b243714642be",
+  "ids:description": [
+    {
+      "@value": "Usage policy for SAMPLES provide access applied",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    }
+  ],
+  "ids:title": [
+    {
+      "@value": "Example Usage Policy for SAMPLES",
+      "@type": "http://www.w3.org/2001/XMLSchema#string"
+    }
+  ],
+  "ids:action": [
+    {
+      "@id": "https://w3id.org/idsa/code/USE"
+    }
+  ]
+}
+
