@@ -4,6 +4,7 @@ import requests
 import commons
 import lxml.html
 from dotenv import load_dotenv
+import datetime
 
 load_dotenv('.env')
 
@@ -18,6 +19,7 @@ DATASET_LIST = os.getenv('DATASET_LIST')
 RULE_JSON = os.getenv('RULE_JSON')
 RULE_SAMPLE_JSON = os.getenv('RULE_SAMPLE_JSON')
 
+MAX_SAMPLE_RECORDS = 10
 
 def get_dataset_list(input_file: str = DATASET_LIST):
     datasets = []
@@ -162,13 +164,13 @@ def upsert_offer(offer_data: dict, connector_url: str, auth: tuple) -> dict:
 
 
 def upsert_resource_entity(entity_data: dict, entity_name: str, connector_url: str, auth: tuple) -> dict:
-    resource_id = entity_data['resource_id']
-
     # check if entity exists
     request_url = "{0}/api/{1}".format(connector_url, entity_name)
     response = requests.get(request_url, data={}, auth=auth, verify=False)
     print(" \t\t\t\t - Request GET {0} {1}\t => {2}".format(entity_name, request_url, response.status_code))
     response.raise_for_status()
+
+    resource_id = entity_data['resource_id']
     entity_list = json.loads(response.content).get('_embedded', {}).get(entity_name, [])
     existing_entities = [o for o in entity_list if o.get("additional", {}).get("resource_id") == resource_id]
 
@@ -304,14 +306,14 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
         file_format = resource['format']
         data_url = resource['url']
         sample = None
-        datastore_info = None
         if file_format == 'CSV':
             success, result = commons.ckan_api_request(ckan_url, endpoint="datastore_search", method="get",
                                                        params={"resource_id": resource_id}, verbose=False)
             if success >= 0:
                 header = {k['id']: k['type'] for k in result['result']['fields']}
-                sample = [json.dumps(header)] + [json.dumps(r) for r in result['result']['records']]
-                # datastore_info = json.dumps(result['result']['fields'])
+                info = {k['id']: k.get('info') for k in result['result']['fields']}
+                sample = {'header': header, 'info': info,
+                          'records': result['result']['records'][:MAX_SAMPLE_RECORDS]}
             offer = {'data': {"resource_id": "{}_{}".format(id, resource_id),
                               "resource_name": "{}_{}".format(metadata["name"], resource["name"]["es"]),
                               "title": metadata["title"]["es"] + " - " + resource["name"]["es"],
@@ -370,19 +372,17 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                             "dataset_url": ckan_url + '/dataset/' + metadata['name'],
                             "dataset_name": offer['data']["dataset_name"],
                             "resource_id": offer['data']["resource_id"],
-                            "resource_name": offer['data']["resource_name"]
+                            "resource_name": offer['data']["resource_name"],
+                            "start": (datetime.datetime.now() - datetime.timedelta(days=3))
+                                    .strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                            "end": (datetime.datetime.now()+datetime.timedelta(days=4*365))
+                                    .strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                         },
                         'rule': {
                             "title": offer["data"]["title"] + " (Rule)",
                             "description": "Rule for resource: " + offer["data"]["description"],
                             "value": get_rule(),
-                            "organization_id": offer['data']["organization_id"],
-                            "organization_name": catalog['organization_name'],
-                            "dataset_id": offer['data']["dataset_id"],
-                            "dataset_url": ckan_url + '/dataset/' + metadata['name'],
-                            "dataset_name": offer['data']["dataset_name"],
                             "resource_id": offer['data']["resource_id"],
-                            "resource_name": offer['data']["resource_name"]
                         }
                       }
             representation["artifact"] = artifact
@@ -403,6 +403,8 @@ def import_dataset(dataset: str, connector_url: str, auth: tuple) -> list:
     for offer_data in entities_data['offers']:
         sample = import_sample(offer_data, catalog, connector_url, auth)
         offer_data['data']['samples'] = [sample['_links']['self']['href']]
+        offer_data['data']['ids:sample'] = sample['_links']['self']['href']
+
         # upsert offer
         print(" - Upsert offer: {}".format(offer_data["data"]["title"]))
         offer = upsert_offer(offer_data['data'], connector_url, auth)
@@ -434,7 +436,7 @@ def import_sample(offer: dict, catalog: dict, connector_url: str, auth: tuple) -
             "resource_id": offer['data']['resource_id'] + "_SAMPLE",
             "resource_name": offer['data']['resource_name'] + "_SAMPLE",
             "title": offer['data']['title'] + " SAMPLE",
-            "keywords": []
+            "keywords": ['SAMPLE']
         }
     print(" - Upsert SAMPLE offer: {}".format(sample_offer_data["title"]))
     sample_offer = upsert_offer(sample_offer_data, connector_url, auth)
@@ -444,7 +446,10 @@ def import_sample(offer: dict, catalog: dict, connector_url: str, auth: tuple) -
     sample_contract_data = {
         "resource_id": sample_offer['additional']['resource_id'],
         "title": offer["data"]["title"] + " SAMPLE (Contract)",
-        "provider": offer['contract']['data']['provider']
+        "provider": offer['contract']['data']['provider'],
+        "start": (datetime.datetime.now() - datetime.timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+        "end": (datetime.datetime.now() + datetime.timedelta(days=4 * 365))
+        .strftime('%Y-%m-%dT%H:%M:%S.%fZ')
     }
     print(" - Upsert contract and rule: {}".format(sample_contract_data["title"]))
     rule_sample_data = {
@@ -460,7 +465,7 @@ def import_sample(offer: dict, catalog: dict, connector_url: str, auth: tuple) -
     # Add representation and artifact to offer
     representation_data = {
         "title": offer["data"]["title"] + " SAMPlE (CSV format)",
-        "mediaType": "text/csv",
+        "mediaType": "application/json",
         "language": "https://w3id.org/idsa/code/ES",
         "resource_id": sample_offer['additional']['resource_id']
     }
@@ -516,13 +521,13 @@ def main(metadata_broker_url: str = METADATA_BROKER_URL, metadata_broker_docker_
         print("\t\t\t ... done!\n")
     print("\t\t ... Imported resources: {}... => OK".format(str(imported_resources)[:300]))
 
-    # print("\n * Requesting broker self-description...")
-    # broker_description = get_broker_description(metadata_broker_url)
-    # print("\t\t ... Got Broker Description: {}... => OK".format(str(broker_description)[:300]))
-    #
-    # print("\n * Requesting connector self-description...")
-    # self_description = get_self_description(connector_url, connector_auth)
-    # print("\t\t ... Got Self Description: {}... => OK".format(str(self_description)[:300]))
+    print("\n * Requesting broker self-description...")
+    broker_description = get_broker_description(metadata_broker_url)
+    print("\t\t ... Got Broker Description: {}... => OK".format(str(broker_description)[:300]))
+
+    print("\n * Requesting connector self-description...")
+    self_description = get_self_description(connector_url, connector_auth)
+    print("\t\t ... Got Self Description: {}... => OK".format(str(self_description)[:300]))
 
     print("\n * Register connector in the broker...")
     broker_registration = post_broker_registration(metadata_broker_docker_url, connector_url, connector_auth)
