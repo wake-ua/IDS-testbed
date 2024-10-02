@@ -271,10 +271,11 @@ def get_keywords(metadata: dict) -> list:
             tag = tag.rsplit('-', 1)[0]
             if tag not in keywords:
                 keywords += [tag]
-    for key in str(metadata['original_tags']).split(','):
-        tag = key.strip().upper()
-        if tag not in keywords:
-            keywords += [tag]
+    for key in str(metadata.get('original_tags', "")).split(','):
+        if key:
+            tag = key.strip().upper()
+            if tag not in keywords:
+                keywords += [tag]
     return keywords
 
 
