@@ -6,3 +6,4 @@ python-dotenv==1.0.1
 requests==2.32.3
 urllib3==2.2.2
 lxml~=5.2.2
+dplib-py==1.1.0

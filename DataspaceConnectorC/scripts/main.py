@@ -6,6 +6,8 @@ import lxml.html
 from dotenv import load_dotenv
 import datetime
 
+from dplib.plugins.ckan.models import CkanPackage, CkanSchema
+
 load_dotenv('.env')
 
 METADATA_BROKER_URL = os.getenv("METADATA_BROKER_URL")
@@ -20,6 +22,39 @@ RULE_JSON = os.getenv('RULE_JSON')
 RULE_SAMPLE_JSON = os.getenv('RULE_SAMPLE_JSON')
 
 MAX_SAMPLE_RECORDS = 10
+
+
+def fix_multilingual(ckan_dataset_original: dict, resource_id: str, lang: str = 'es'):
+
+    ckan_dataset = ckan_dataset_original.copy()
+    ckan_dataset["notes"] = ckan_dataset["notes"].get(lang, ckan_dataset["notes"])
+    ckan_dataset["title"] = ckan_dataset["title"].get(lang, ckan_dataset["title"])
+    ckan_dataset["tags"] = [{"name": k, "display_name": k, "state": "active", "id": k, "vocabulary": None}
+                            for k in get_keywords(ckan_dataset)]
+
+    resources = []
+    for resource_original in ckan_dataset["resources"]:
+        resource = resource_original.copy()
+        if resource['id'] == resource_id:
+            resource["name"] = resource["name"].get(lang, resource["name"])
+            resource["description"] = resource["description"].get(lang, resource["description"])
+            resources = [resource]
+            break
+
+    ckan_dataset["resources"] = resources
+    return ckan_dataset
+
+
+def generate_datapackage(ckan_dataset: dict, datastore_info: dict, resource_id: str) -> dict:
+    fixed_ckan_dataset = fix_multilingual(ckan_dataset, resource_id)
+
+    datapackage = CkanPackage.from_dict(fixed_ckan_dataset).to_dp()
+    schema = CkanSchema.from_dict(datastore_info).to_dp()
+    datapackage.resources[0].schema = schema
+    datapackage.resources[0].type = "table"
+
+    return datapackage.to_dict()
+
 
 def get_dataset_list(input_file: str = DATASET_LIST):
     datasets = []
@@ -279,7 +314,8 @@ def get_keywords(metadata: dict) -> list:
     return keywords
 
 
-def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provider_url: str = CONNECTOR_DOCKER_URL) -> dict:
+def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL,
+                         provider_url: str = CONNECTOR_DOCKER_URL) -> dict:
     # catalog / offers / representations-artifacts
     id = metadata['id']
     source_url = metadata['url']
@@ -311,29 +347,32 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
             success, result = commons.ckan_api_request(ckan_url, endpoint="datastore_search", method="get",
                                                        params={"resource_id": resource_id}, verbose=False)
             if success >= 0:
+                datastore_info = result['result']
+                datapackage = generate_datapackage(metadata, datastore_info, resource_id)
                 header = {k['id']: k['type'] for k in result['result']['fields']}
                 info = {k['id']: k.get('info') for k in result['result']['fields']}
-                sample = {'header': header, 'info': info,
+                sample = {'header': header, 'info': info, 'datapackage': datapackage,
                           'records': result['result']['records'][:MAX_SAMPLE_RECORDS]}
-            offer = {'data': {"resource_id": "{}_{}".format(id, resource_id),
-                              "resource_name": "{}_{}".format(metadata["name"], resource["name"]["es"]),
-                              "title": metadata["title"]["es"] + " - " + resource["name"]["es"],
-                              "description": as_simple_text(metadata["notes"]["es"]) + " " +
-                                             resource["description"]["es"],
-                              "keywords": get_keywords(metadata),
-                              "publisher": ckan_url,
-                              "language": "ES",
-                              "license": metadata["license_url"],
-                              "sovereign": catalog['organization_source'],
-                              "endpointDocumentation": source_url,
-                              "paymentMethod": None,
-                              'dataset_name': metadata['name'],
-                              'data_url': data_url,
-                              'source_url': source_url,
-                              "dataset_id": metadata['id'],
-                              "dataset_url": ckan_url + '/dataset/' + metadata['name'],
-                              "organization_id": catalog['organization_id'],
-                              "organization_name": catalog['organization_name'],
+            offer = {'data': {
+                                  "resource_id": "{}_{}".format(id, resource_id),
+                                  "resource_name": "{}_{}".format(metadata["name"], resource["name"]["es"]),
+                                  "title": metadata["title"]["es"] + " - " + resource["name"]["es"],
+                                  "description": as_simple_text(metadata["notes"]["es"]) + " " +
+                                                 resource["description"]["es"],
+                                  "keywords": get_keywords(metadata),
+                                  "publisher": ckan_url,
+                                  "language": "ES",
+                                  "license": metadata["license_url"],
+                                  "sovereign": catalog['organization_source'],
+                                  "endpointDocumentation": source_url,
+                                  "paymentMethod": None,
+                                  'dataset_name': metadata['name'],
+                                  'data_url': data_url,
+                                  'source_url': source_url,
+                                  "dataset_id": metadata['id'],
+                                  "dataset_url": ckan_url + '/dataset/' + metadata['name'],
+                                  "organization_id": catalog['organization_id'],
+                                  "organization_name": catalog['organization_name'],
                               },
                      'sample_data': sample
                      }
@@ -375,9 +414,9 @@ def get_dataset_entities(metadata: dict, ckan_url: str = DATA_SOURCE_URL, provid
                             "resource_id": offer['data']["resource_id"],
                             "resource_name": offer['data']["resource_name"],
                             "start": (datetime.datetime.now() - datetime.timedelta(days=3))
-                                    .strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                                     .strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
                             "end": (datetime.datetime.now()+datetime.timedelta(days=4*365))
-                                    .strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                                   .strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                         },
                         'rule': {
                             "title": offer["data"]["title"] + " (Rule)",
