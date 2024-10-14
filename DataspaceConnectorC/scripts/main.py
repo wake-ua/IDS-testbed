@@ -5,8 +5,11 @@ import commons
 import lxml.html
 from dotenv import load_dotenv
 import datetime
+from frictionless import describe
 
 from dplib.plugins.ckan.models import CkanPackage, CkanSchema
+from dplib.models import Schema, IntegerField, GeopointField, NumberField, GeojsonField, YearmonthField, \
+                         DatetimeField, DateField
 
 load_dotenv('.env')
 
@@ -49,8 +52,45 @@ def generate_datapackage(ckan_dataset: dict, datastore_info: dict, resource_id: 
     fixed_ckan_dataset = fix_multilingual(ckan_dataset, resource_id)
 
     datapackage = CkanPackage.from_dict(fixed_ckan_dataset).to_dp()
-    schema = CkanSchema.from_dict(datastore_info).to_dp()
-    datapackage.resources[0].schema = schema
+    ckan_schema = CkanSchema.from_dict(datastore_info).to_dp()
+
+    # guess data types
+    header = [k['id'] for k in datastore_info['fields']]
+    records = [list(v.values()) for v in datastore_info['records']]
+    new_schema = describe([header] + records, type="schema")
+    fields = new_schema.fields
+
+    new_schema = Schema()
+    for field in ckan_schema.fields:
+        field_new = [f for f in fields if f.name == field.name][0]
+        if field.type == 'string' and field_new.type != 'string':
+            # print(field)
+            if field.title:
+                field_new.title = field.title
+            if field.description:
+                field_new.description = field.description
+            # print('=>', field_new)
+            match field_new.type:
+                case "integer":
+                    new_schema.add_field(IntegerField(**field_new.to_dict()))
+                case "number":
+                    new_schema.add_field(NumberField(**field_new.to_dict()))
+                case "geopoint":
+                    new_schema.add_field(GeopointField(**field_new.to_dict()))
+                case "geojson":
+                    new_schema.add_field(GeojsonField(**field_new.to_dict()))
+                case"yearmonth":
+                    new_schema.add_field(YearmonthField(**field_new.to_dict()))
+                case "datetime":
+                    new_schema.add_field(DatetimeField(**field_new.to_dict()))
+                case "date":
+                    new_schema.add_field(DateField(**field_new.to_dict()))
+                case _:
+                    raise Exception("Unknown type: " + field_new.type)
+        else:
+            new_schema.add_field(field)
+
+    datapackage.resources[0].schema = new_schema
     datapackage.resources[0].type = "table"
 
     return datapackage.to_dict()
@@ -60,7 +100,7 @@ def get_dataset_list(input_file: str = DATASET_LIST):
     datasets = []
     with open(input_file, 'r') as source:
         for line in source.readlines():
-            if len(line.strip()) > 3 and not line.startswith('#'):
+            if len(line.strip()) > 3 and not line.strip().startswith('#'):
                 dataset = line.strip()
                 if dataset.startswith('http'):
                     dataset = dataset.split('/')[-1]
@@ -129,10 +169,14 @@ def upsert_catalog(catalog_data: dict, connector_url: str, auth: tuple) -> dict:
     catalog_org_id = catalog_data["organization_id"]
 
     # check if catalog exists
+    catalog_list = []
     request_url = "{0}/api/catalogs".format(connector_url)
-    response = requests.get(request_url, data={}, auth=auth, verify=False)
-    print(" \t\t\t\t - Request GET Catalogs {0} \t => {1}".format(request_url, response.status_code))
-    catalog_list = json.loads(response.content).get('_embedded', {}).get('catalogs', [])
+    while request_url is not None:
+        response = requests.get(request_url, data={}, auth=auth, verify=False)
+        print(" \t\t\t\t - Request GET Catalogs {0} \t => {1}".format(request_url, response.status_code))
+        result = json.loads(response.content)
+        catalog_list += result.get('_embedded', {}).get('catalogs', [])
+        request_url = result.get('_links', {}).get("next", {}).get("href")
 
     existing_catalogs = [c for c in catalog_list if c.get("additional", {}).get("organization_id") == catalog_org_id]
 
@@ -165,10 +209,14 @@ def upsert_offer(offer_data: dict, connector_url: str, auth: tuple) -> dict:
 
     # check if offer exists
     request_url = "{0}/api/offers".format(connector_url)
-    response = requests.get(request_url, data={}, auth=auth, verify=False)
-    print(" \t\t\t\t - Request GET offers {0} \t => {1}".format(request_url, response.status_code))
-    response.raise_for_status()
-    offer_list = json.loads(response.content).get('_embedded', {}).get('resources', [])
+    offer_list = []
+    while request_url is not None:
+        response = requests.get(request_url, data={}, auth=auth, verify=False)
+        print(" \t\t\t\t - Request GET offers {0} \t => {1}".format(request_url, response.status_code))
+        response.raise_for_status()
+        result = json.loads(response.content)
+        offer_list += result.get('_embedded', {}).get('resources', [])
+        request_url = result.get('_links', {}).get("next", {}).get("href")
     existing_offers = [o for o in offer_list if o.get("additional", {}).get("resource_id") == resource_id]
 
     if len(existing_offers) == 0:
@@ -200,18 +248,22 @@ def upsert_offer(offer_data: dict, connector_url: str, auth: tuple) -> dict:
 
 def upsert_resource_entity(entity_data: dict, entity_name: str, connector_url: str, auth: tuple) -> dict:
     # check if entity exists
-    request_url = "{0}/api/{1}".format(connector_url, entity_name)
-    response = requests.get(request_url, data={}, auth=auth, verify=False)
-    print(" \t\t\t\t - Request GET {0} {1}\t => {2}".format(entity_name, request_url, response.status_code))
-    response.raise_for_status()
-
-    resource_id = entity_data['resource_id']
-    entity_list = json.loads(response.content).get('_embedded', {}).get(entity_name, [])
+    request_url_base = "{0}/api/{1}".format(connector_url, entity_name)
+    request_url = request_url_base
+    entity_list = []
+    while request_url is not None:
+        response = requests.get(request_url, data={}, auth=auth, verify=False)
+        print(" \t\t\t\t - Request GET {0} {1}\t => {2}".format(entity_name, request_url, response.status_code))
+        response.raise_for_status()
+        resource_id = entity_data['resource_id']
+        result = json.loads(response.content)
+        entity_list += result.get('_embedded', {}).get(entity_name, [])
+        request_url = result.get('_links', {}).get("next", {}).get("href")
     existing_entities = [o for o in entity_list if o.get("additional", {}).get("resource_id") == resource_id]
 
     if len(existing_entities) == 0:
         # POST
-        response = requests.post(request_url, json=entity_data, auth=auth, verify=False)
+        response = requests.post(request_url_base, json=entity_data, auth=auth, verify=False)
         print(" \t\t\t\t - Request POST new {0} {1} \t => {2}".format(entity_name, request_url, response.status_code))
         response.raise_for_status()
         new_entity = json.loads(response.content)
@@ -219,11 +271,11 @@ def upsert_resource_entity(entity_data: dict, entity_name: str, connector_url: s
     elif len(existing_entities) == 1:
         # PUT
         request_url = existing_entities[0]["_links"]["self"]["href"]
-        response = requests.put(request_url, json=entity_data, auth=auth, verify=False)
+        response = requests.put(request_url_base, json=entity_data, auth=auth, verify=False)
         print(" \t\t\t\t - Request PUT updated entity {0} {1}\t => {2}".format(entity_name, request_url, response.status_code))
         response.raise_for_status()
         if response.status_code == 204:
-            response = requests.get(request_url, data={}, auth=auth, verify=False)
+            response = requests.get(request_url_base, data={}, auth=auth, verify=False)
             print(" \t\t\t\t - Request GET entity {0} \t => {1}".format(request_url, response.status_code))
             response.raise_for_status()
             updated_entity = json.loads(response.content)
@@ -476,6 +528,7 @@ def import_sample(offer: dict, catalog: dict, connector_url: str, auth: tuple) -
             "resource_id": offer['data']['resource_id'] + "_SAMPLE",
             "resource_name": offer['data']['resource_name'] + "_SAMPLE",
             "title": offer['data']['title'] + " SAMPLE",
+            "description": offer['data']['description'] + " SAMPLE",
             "keywords": ['SAMPLE']
         }
     print(" - Upsert SAMPLE offer: {}".format(sample_offer_data["title"]))
@@ -504,7 +557,7 @@ def import_sample(offer: dict, catalog: dict, connector_url: str, auth: tuple) -
 
     # Add representation and artifact to offer
     representation_data = {
-        "title": offer["data"]["title"] + " SAMPlE (CSV format)",
+        "title": offer["data"]["title"] + " SAMPLE (CSV format)",
         "mediaType": "application/json",
         "language": "https://w3id.org/idsa/code/ES",
         "resource_id": sample_offer['additional']['resource_id']
