@@ -62,13 +62,26 @@ def generate_datapackage(ckan_dataset: dict, datastore_info: dict, resource_id: 
 
     new_schema = Schema()
     for field in ckan_schema.fields:
+
+        # add example value
+        example_value = None
+        for record in datastore_info['records']:
+            value = record.get(field.name)
+            if value is not None and len(str(value)) > 0:
+                example_value = value
+                break
+        field.example = example_value
+
         field_new = [f for f in fields if f.name == field.name][0]
-        if field.type == 'string' and field_new.type != 'string':
+
+        if field.type == 'string' and field_new.type != 'string' and example_value is not None:
             # print(field)
             if field.title:
                 field_new.title = field.title
             if field.description:
                 field_new.description = field.description
+            field_new.example = field.example
+
             # print('=>', field_new)
             match field_new.type:
                 case "integer":
